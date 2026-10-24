@@ -33,7 +33,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem('kio-theme') !== 'light');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const apiBase = typeof window !== 'undefined' 
+  const apiBase = window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : 'https://kio-backend-g7t0.onrender.com';
     ? `http://${window.location.hostname}:8000` 
     : 'http://127.0.0.1:8000';
 

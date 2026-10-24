@@ -1,26 +1,30 @@
 ﻿{
   "short_name": "Kio",
-  "name": "Kio Personal AI Agent",
-  "description": "Your fast, local-first personal AI assistant",
+  "name": "Kio Personal AI Platform",
+  "description": "Your fast personal AI assistant",
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
-      "sizes": "192x192 512x512"
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
-  "background_color": "#090a0d",
-  "theme_color": "#090a0d",
+  "background_color": "#0B0C10",
+  "theme_color": "#0B0C10",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "share_target": {
-    "action": "/",
-    "method": "GET",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  }
+  "orientation": "portrait-primary"
 }
