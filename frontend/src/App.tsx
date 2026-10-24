@@ -4,7 +4,8 @@ import {
   Send, Square, Copy, Check, ChevronLeft, ChevronRight, 
   Paperclip, FileText, X, Search, ThumbsUp, ThumbsDown, 
   RotateCcw, Edit3, Settings, Download, Globe, Brain, 
-  Code2, Compass, Lightbulb 
+  Code2, CheckCircle2, AlertCircle, Compass, Lightbulb, 
+  BookOpen
 } from 'lucide-react';
 
 interface Conversation {
@@ -37,19 +38,23 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Dynamic API Base URL
   const apiBase = typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'http://127.0.0.1:8000'
     : 'https://kio-backend-g7t0.onrender.com';
 
+  // Core State
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Mode Toggles
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [deepThinkEnabled, setDeepThinkEnabled] = useState(false);
 
+  // Power States
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingStep, setThinkingStep] = useState(1);
   const [editingMsgIdx, setEditingMsgIdx] = useState<number | null>(null);
@@ -68,6 +73,7 @@ export default function App() {
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Sync Theme
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -78,10 +84,12 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Sidebar responsive default
   useEffect(() => {
     if (window.innerWidth >= 1024) setIsSidebarOpen(true);
   }, []);
 
+  // Textarea auto-resize
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -89,10 +97,12 @@ export default function App() {
     }
   }, [inputMessage]);
 
+  // Scroll to bottom
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading, thinkingStep]);
 
+  // Thinking step cycler
   useEffect(() => {
     if (!isLoading) {
       setThinkingStep(1);
@@ -104,6 +114,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isLoading]);
 
+  // Load Conversations
   const loadConversations = async () => {
     try {
       const res = await fetch(`${apiBase}/api/conversations`);
@@ -115,7 +126,7 @@ export default function App() {
         }
       }
     } catch {
-      setErrorNotice('Connecting to cloud backend...');
+      setErrorNotice('Connecting to backend...');
     }
   };
 
@@ -187,6 +198,7 @@ export default function App() {
     loadConversations();
   }, []);
 
+  // File Upload
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -227,6 +239,7 @@ export default function App() {
     }
   };
 
+  // Stop Generation
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -238,6 +251,7 @@ export default function App() {
     }
   };
 
+  // Send Message
   const handleSend = async (customPrompt?: string) => {
     const rawText = (customPrompt || inputMessage).trim();
     if ((!rawText && attachedItems.length === 0) || isLoading) return;
@@ -277,10 +291,10 @@ export default function App() {
     });
 
     if (webSearchEnabled) {
-      textPayload = `[SYSTEM: Focus on factual analysis and structured synthesis]\n${textPayload}`;
+      textPayload = `[SYSTEM: Prioritize current factual research & structured synthesis]\n${textPayload}`;
     }
     if (deepThinkEnabled) {
-      textPayload = `[SYSTEM: Provide detailed reasoning and architectural breakdown]\n${textPayload}`;
+      textPayload = `[SYSTEM: Provide detailed architectural breakdown and comprehensive reasoning]\n${textPayload}`;
     }
 
     setInputMessage('');
@@ -325,7 +339,7 @@ export default function App() {
       if (err.name !== 'AbortError') {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `⚠️ Error: ${err.message}. Backend might be waking up, please retry in 10s.`, isError: true }
+          { role: 'assistant', content: `⚠️ Error: ${err.message}. Please retry or check backend connection.`, isError: true }
         ]);
       }
     } finally {
@@ -378,6 +392,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Full Markdown Renderer
   const renderMessageContent = (content: string) => {
     const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
     const parts = [];
@@ -403,6 +418,7 @@ export default function App() {
             const blockId = `code-block-${i}`;
             return (
               <div key={i} className="my-4 rounded-xl overflow-hidden border border-white/[0.08] bg-[#0d0e12] font-mono text-xs shadow-xl">
+                {/* macOS Style Window Bar */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-[#14161c] border-b border-white/[0.06] text-zinc-400">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
@@ -425,6 +441,7 @@ export default function App() {
             );
           }
 
+          // Format paragraphs, bold, lists
           const paragraphs = p.value.split('\n\n');
           return (
             <div key={i} className="space-y-3">
@@ -442,6 +459,7 @@ export default function App() {
                   return <blockquote key={pIdx} className="border-l-2 border-indigo-400 pl-3 italic text-zinc-300">{para.slice(2)}</blockquote>;
                 }
 
+                // Render bold & inline code
                 const formattedText = para.split(/(\*\*.*?\*\*|`.*?`)/g).map((segment, sIdx) => {
                   if (segment.startsWith('**') && segment.endsWith('**')) {
                     return <strong key={sIdx} className="font-semibold text-white">{segment.slice(2, -2)}</strong>;
@@ -475,6 +493,7 @@ export default function App() {
   return (
     <div className={`flex h-dvh w-full overflow-hidden ${darkMode ? 'bg-[#0f1115] text-[#eceff3]' : 'bg-[#f6f7f9] text-[#14171c]'} font-sans antialiased`}>
       
+      {/* Hidden File Picker */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -483,7 +502,7 @@ export default function App() {
         accept="image/*,.pdf,.txt,.md,.py,.js,.ts,.tsx,.jsx,.html,.css,.csv,.json" 
       />
 
-      {/* --- SIDEBAR --- */}
+      {/* --- COLLAPSIBLE WORKSPACE SIDEBAR --- */}
       <aside 
         className={`fixed lg:relative inset-y-0 left-0 z-50 duration-300 transition-all overflow-hidden flex flex-col border-r shrink-0 select-none ${
           isSidebarOpen ? 'w-76 shadow-2xl lg:shadow-none' : 'w-0'
@@ -491,6 +510,7 @@ export default function App() {
       >
         <div className="p-4 space-y-4 flex-1 flex flex-col min-w-[19rem] overflow-hidden">
           
+          {/* Brand & Animated Logo */}
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 relative group">
@@ -510,6 +530,7 @@ export default function App() {
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className="p-2 rounded-xl hover:bg-white/[0.06] text-zinc-400 hover:text-white transition"
+                title="Toggle Theme"
               >
                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
               </button>
@@ -522,6 +543,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* New Chat Button */}
           <button
             onClick={createNewChat}
             className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition active:scale-[0.98]"
@@ -533,6 +555,7 @@ export default function App() {
             <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/10 font-mono">⌘N</span>
           </button>
 
+          {/* Search History */}
           <div className="relative">
             <Search size={13} className="absolute left-3.5 top-2.5 text-zinc-500" />
             <input
@@ -546,6 +569,7 @@ export default function App() {
             />
           </div>
 
+          {/* Conversation History Stream */}
           <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-2 pt-1 pb-1">
               Recent Chats
@@ -614,6 +638,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Profile & Settings Footer */}
         <div className="p-3.5 border-t border-white/[0.08] bg-[#14161c] min-w-[19rem] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white">
@@ -637,7 +662,7 @@ export default function App() {
       {/* --- MAIN STAGE --- */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         
-        {/* Header */}
+        {/* Top Navbar */}
         <header className="flex items-center justify-between py-3 px-5 border-b border-white/[0.06] bg-inherit shrink-0 z-20">
           <div className="flex items-center gap-3">
             <button
@@ -648,6 +673,7 @@ export default function App() {
               {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
             </button>
             
+            {/* Model Selector Pill */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs font-medium">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-semibold text-zinc-200">Claude Haiku 4.5</span>
@@ -675,6 +701,7 @@ export default function App() {
           </div>
         </header>
 
+        {/* Global Connection Notice */}
         {errorNotice && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-xs text-amber-300 flex items-center justify-between">
             <span>{errorNotice}</span>
@@ -682,10 +709,12 @@ export default function App() {
           </div>
         )}
 
+        {/* --- CHAT FEED --- */}
         <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           
           <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-7 max-w-4xl w-full mx-auto min-w-0 custom-scrollbar">
             
+            {/* HERO LANDING (Claude & ChatGPT Hybrid) */}
             {messages.length === 0 && (
               <div className="h-full flex flex-col justify-center items-center text-center space-y-8 my-auto py-12 animate-fade-in">
                 <div className="space-y-3.5">
@@ -700,6 +729,7 @@ export default function App() {
                   </p>
                 </div>
 
+                {/* Interactive Suggestion Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full max-w-2xl text-left">
                   {heroSuggestions.map((item, idx) => {
                     const Icon = item.icon;
@@ -721,6 +751,7 @@ export default function App() {
               </div>
             )}
 
+            {/* MESSAGES FLOW */}
             {messages.map((m, idx) => (
               <div key={idx} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} group w-full`}>
                 <div className="flex items-start gap-3.5 max-w-[94%] md:max-w-[88%] min-w-0">
@@ -733,14 +764,16 @@ export default function App() {
 
                   <div className="flex-1 space-y-2 min-w-0">
                     
+                    {/* Image Attachment Preview */}
                     {m.images && m.images.length > 0 && (
                       <div className="flex flex-wrap gap-2.5 justify-end">
                         {m.images.map((img, i) => (
-                          <img key={i} src={img} alt="attachment" className="max-w-[260px] max-h-[260px] rounded-2xl object-cover border border-white/[0.12] shadow-lg" />
+                          <img key={i} src={img} alt="Uploaded attachment" className="max-w-[260px] max-h-[260px] rounded-2xl object-cover border border-white/[0.12] shadow-lg" />
                         ))}
                       </div>
                     )}
 
+                    {/* Document Badges */}
                     {m.files && m.files.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 justify-end">
                         {m.files.map((f, i) => (
@@ -752,6 +785,7 @@ export default function App() {
                       </div>
                     )}
 
+                    {/* Content Box */}
                     {editingMsgIdx === idx ? (
                       <div className="p-4 rounded-2xl bg-[#181b21] border border-indigo-500/50 space-y-3">
                         <textarea
@@ -787,6 +821,7 @@ export default function App() {
                       </div>
                     )}
 
+                    {/* Hover Utility Action Bar */}
                     <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => copyText(m.content, idx)}
@@ -802,14 +837,14 @@ export default function App() {
                           <button
                             onClick={() => setFeedback(idx, 'up')}
                             className={`p-1.5 rounded-lg hover:bg-white/[0.06] transition ${m.feedback === 'up' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'}`}
-                            title="Helpful"
+                            title="Helpful response"
                           >
                             <ThumbsUp size={13} />
                           </button>
                           <button
                             onClick={() => setFeedback(idx, 'down')}
                             className={`p-1.5 rounded-lg hover:bg-white/[0.06] transition ${m.feedback === 'down' ? 'text-rose-400' : 'text-zinc-400 hover:text-white'}`}
-                            title="Unhelpful"
+                            title="Report poor response"
                           >
                             <ThumbsDown size={13} />
                           </button>
@@ -846,6 +881,7 @@ export default function App() {
               </div>
             ))}
 
+            {/* MULTI-STAGE REASONING ANIMATION */}
             {isLoading && (
               <div className="flex items-start gap-3.5 max-w-lg pt-1">
                 <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md animate-pulse">
@@ -871,9 +907,10 @@ export default function App() {
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Composer */}
+          {/* --- FLOATING COMMAND CAPSULE COMPOSER --- */}
           <div className="p-4 md:p-6 max-w-4xl w-full mx-auto shrink-0 pb-[max(1.2rem,env(safe-area-inset-bottom))]">
             
+            {/* Attachment preview dock */}
             {attachedItems.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2 px-1">
                 {attachedItems.map((item, i) => (
@@ -892,8 +929,10 @@ export default function App() {
               </div>
             )}
 
+            {/* Elevated Pill Container */}
             <div className="rounded-2xl border border-white/[0.1] bg-[#181b21]/95 shadow-2xl backdrop-blur-xl focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/15 transition-all">
               
+              {/* Text Field */}
               <div className="flex items-end p-2.5 pl-3.5 gap-2">
                 <button
                   type="button"
@@ -938,6 +977,7 @@ export default function App() {
                 )}
               </div>
 
+              {/* Tool Mode Toggles Bar */}
               <div className="flex items-center justify-between px-3.5 py-2 border-t border-white/[0.06] text-xs">
                 <div className="flex items-center gap-2">
                   <button
@@ -970,7 +1010,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Settings Modal */}
+      {/* --- SETTINGS & DATA CONTROLS MODAL --- */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#181b21] border border-white/[0.1] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-fade-in">
