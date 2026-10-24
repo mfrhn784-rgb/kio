@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  MessageSquare, Plus, Trash2, Loader2, Sparkles, Sun, Moon, 
-  Send, Square, Copy, Check, ChevronLeft, ChevronRight, 
-  Paperclip, FileText, X, Search, ThumbsUp, ThumbsDown, 
-  RotateCcw, Edit3, Settings, Download, Globe, Brain, 
-  Code2, CheckCircle2, AlertCircle, Compass, Lightbulb, 
-  BookOpen
+  PanelLeft, SquarePen, ChevronDown, Plus, Trash2, Settings, 
+  ArrowUp, Square, Copy, Check, Paperclip, X, Search, 
+  ThumbsUp, ThumbsDown, RotateCcw, Edit2, Globe, Brain, 
+  Mic, Download, Sparkles, Sun, Moon, FileText, CheckCircle2
 } from 'lucide-react';
 
 interface Conversation {
@@ -35,38 +33,35 @@ interface Message {
 
 export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem('kio-theme') !== 'light');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'personalization' | 'data'>('general');
+  const [selectedModel, setSelectedModel] = useState<'Kio 4o' | 'Kio 4o mini' | 'Kio o1'>('Kio 4o');
 
   // Dynamic API Base URL
   const apiBase = typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'http://127.0.0.1:8000'
     : 'https://kio-backend-g7t0.onrender.com';
 
-  // Core State
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mode Toggles
+  // Composer Features
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [deepThinkEnabled, setDeepThinkEnabled] = useState(false);
 
-  // Power States
+  // States
   const [isLoading, setIsLoading] = useState(false);
-  const [thinkingStep, setThinkingStep] = useState(1);
   const [editingMsgIdx, setEditingMsgIdx] = useState<number | null>(null);
   const [editBuffer, setEditBuffer] = useState('');
-  const [editingConvId, setEditingConvId] = useState<string | null>(null);
-  const [renameBuffer, setRenameBuffer] = useState('');
-
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
-  const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -84,37 +79,23 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Sidebar responsive default
+  // Mobile sidebar default
   useEffect(() => {
-    if (window.innerWidth >= 1024) setIsSidebarOpen(true);
+    if (window.innerWidth < 1024) setIsSidebarOpen(false);
   }, []);
 
   // Textarea auto-resize
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
   }, [inputMessage]);
 
-  // Scroll to bottom
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, thinkingStep]);
+  }, [messages, isLoading]);
 
-  // Thinking step cycler
-  useEffect(() => {
-    if (!isLoading) {
-      setThinkingStep(1);
-      return;
-    }
-    const interval = setInterval(() => {
-      setThinkingStep((prev) => (prev >= 3 ? 1 : prev + 1));
-    }, 1800);
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  // Load Conversations
   const loadConversations = async () => {
     try {
       const res = await fetch(`${apiBase}/api/conversations`);
@@ -125,8 +106,8 @@ export default function App() {
           selectConversation(data[0].id);
         }
       }
-    } catch {
-      setErrorNotice('Connecting to backend...');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -137,12 +118,7 @@ export default function App() {
       const res = await fetch(`${apiBase}/api/conversations/${convId}/messages`);
       if (res.ok) {
         const msgs = await res.json();
-        setMessages(msgs.map((m: any) => ({ 
-          id: m.id, 
-          role: m.role, 
-          content: m.content, 
-          created_at: m.created_at 
-        })));
+        setMessages(msgs.map((m: any) => ({ id: m.id, role: m.role, content: m.content })));
       }
     } catch (err) {
       console.error(err);
@@ -154,7 +130,7 @@ export default function App() {
       const res = await fetch(`${apiBase}/api/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Conversation' })
+        body: JSON.stringify({ title: 'New chat' })
       });
       if (res.ok) {
         const newConv = await res.json();
@@ -164,8 +140,8 @@ export default function App() {
         setAttachedItems([]);
         if (window.innerWidth < 1024) setIsSidebarOpen(false);
       }
-    } catch {
-      setErrorNotice('Backend offline.');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -187,18 +163,10 @@ export default function App() {
     }
   };
 
-  const saveRename = (e: React.MouseEvent, convId: string) => {
-    e.stopPropagation();
-    if (!renameBuffer.trim()) return;
-    setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: renameBuffer.trim() } : c));
-    setEditingConvId(null);
-  };
-
   useEffect(() => {
     loadConversations();
   }, []);
 
-  // File Upload
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -239,40 +207,31 @@ export default function App() {
     }
   };
 
-  // Stop Generation
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setIsLoading(false);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: '⏹ *Generation cancelled by user.*' }
-      ]);
     }
   };
 
-  // Send Message
   const handleSend = async (customPrompt?: string) => {
     const rawText = (customPrompt || inputMessage).trim();
     if ((!rawText && attachedItems.length === 0) || isLoading) return;
 
-    setErrorNotice(null);
     let targetConvId = currentConvId;
-
     if (!targetConvId) {
       try {
-        const title = (rawText || attachedItems[0]?.name || 'New Chat').slice(0, 32);
+        const snippet = (rawText || attachedItems[0]?.name || 'New chat').slice(0, 30);
         const res = await fetch(`${apiBase}/api/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title })
+          body: JSON.stringify({ title: snippet })
         });
         const newConv = await res.json();
         targetConvId = newConv.id;
         setCurrentConvId(newConv.id);
         setConversations((prev) => [newConv, ...prev]);
       } catch {
-        setErrorNotice('Cannot connect to backend.');
         return;
       }
     }
@@ -286,16 +245,12 @@ export default function App() {
         imagesToSend.push(item.dataUrl);
       } else if (item.text) {
         docFiles.push({ name: item.name, size: item.size });
-        textPayload = `--- ATTACHMENT: ${item.name} ---\n${item.text}\n--- END ATTACHMENT ---\n\n${textPayload}`;
+        textPayload = `--- DOCUMENT: ${item.name} ---\n${item.text}\n--- END DOCUMENT ---\n\n${textPayload}`;
       }
     });
 
-    if (webSearchEnabled) {
-      textPayload = `[SYSTEM: Prioritize current factual research & structured synthesis]\n${textPayload}`;
-    }
-    if (deepThinkEnabled) {
-      textPayload = `[SYSTEM: Provide detailed architectural breakdown and comprehensive reasoning]\n${textPayload}`;
-    }
+    if (webSearchEnabled) textPayload = `[SEARCH: Prioritize current factual research]\n${textPayload}`;
+    if (deepThinkEnabled) textPayload = `[REASON: Think step-by-step with deep technical rigor]\n${textPayload}`;
 
     setInputMessage('');
     setAttachedItems([]);
@@ -321,7 +276,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversation_id: targetConvId,
-          message: textPayload || 'Please inspect and analyze this request in detail.',
+          message: textPayload || 'Please analyze this.',
           images: imagesToSend
         }),
         signal: controller.signal
@@ -339,7 +294,7 @@ export default function App() {
       if (err.name !== 'AbortError') {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `⚠️ Error: ${err.message}. Please retry or check backend connection.`, isError: true }
+          { role: 'assistant', content: `Something went wrong. Please check your connection or retry in a moment. (${err.message})`, isError: true }
         ]);
       }
     } finally {
@@ -378,21 +333,17 @@ export default function App() {
     setTimeout(() => setCopiedCodeId(null), 2000);
   };
 
-  const setFeedback = (idx: number, type: 'up' | 'down') => {
-    setMessages(prev => prev.map((m, i) => i === idx ? { ...m, feedback: type } : m));
-  };
-
   const exportChat = () => {
     const blob = new Blob([JSON.stringify({ conversation_id: currentConvId, messages }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kio-conversation-${currentConvId || 'export'}.json`;
+    a.download = `chat-${currentConvId || 'export'}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // Full Markdown Renderer
+  // Render ChatGPT Markdown
   const renderMessageContent = (content: string) => {
     const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
     const parts = [];
@@ -412,65 +363,45 @@ export default function App() {
     }
 
     return (
-      <div className="space-y-3.5 leading-relaxed text-[15px] antialiased">
+      <div className="space-y-4 leading-[1.75] text-[16px] antialiased">
         {parts.map((p, i) => {
           if (p.type === 'code') {
             const blockId = `code-block-${i}`;
             return (
-              <div key={i} className="my-4 rounded-xl overflow-hidden border border-white/[0.08] bg-[#0d0e12] font-mono text-xs shadow-xl">
-                {/* macOS Style Window Bar */}
-                <div className="flex items-center justify-between px-4 py-2.5 bg-[#14161c] border-b border-white/[0.06] text-zinc-400">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
-                    <span className="ml-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{p.language}</span>
-                  </div>
+              <div key={i} className="my-5 rounded-2xl overflow-hidden bg-black border border-white/[0.08] font-mono text-[13px]">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-[#171717] text-zinc-400 border-b border-white/[0.06]">
+                  <span className="text-xs font-sans text-zinc-400 lowercase">{p.language}</span>
                   <button
                     onClick={() => copyCode(p.value, blockId)}
-                    className="flex items-center gap-1.5 hover:text-white px-2 py-1 rounded-md hover:bg-white/[0.06] transition"
+                    className="flex items-center gap-1.5 hover:text-white px-2 py-1 rounded transition text-xs font-sans"
                   >
-                    {copiedCodeId === blockId ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    <span className="text-[11px]">{copiedCodeId === blockId ? 'Copied' : 'Copy code'}</span>
+                    {copiedCodeId === blockId ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                    <span>{copiedCodeId === blockId ? 'Copied!' : 'Copy code'}</span>
                   </button>
                 </div>
-                <pre className="p-4 overflow-x-auto leading-relaxed text-zinc-200 selection:bg-indigo-500/30">
+                <pre className="p-4 overflow-x-auto text-zinc-100 selection:bg-zinc-700">
                   <code>{p.value}</code>
                 </pre>
               </div>
             );
           }
 
-          // Format paragraphs, bold, lists
           const paragraphs = p.value.split('\n\n');
           return (
-            <div key={i} className="space-y-3">
+            <div key={i} className="space-y-4">
               {paragraphs.map((para, pIdx) => {
-                if (para.startsWith('# ')) {
-                  return <h1 key={pIdx} className="text-xl font-bold tracking-tight text-white mt-3">{para.slice(2)}</h1>;
-                }
-                if (para.startsWith('## ')) {
-                  return <h2 key={pIdx} className="text-lg font-semibold tracking-tight text-white mt-2">{para.slice(3)}</h2>;
-                }
-                if (para.startsWith('### ')) {
-                  return <h3 key={pIdx} className="text-base font-semibold text-zinc-200 mt-2">{para.slice(4)}</h3>;
-                }
-                if (para.startsWith('> ')) {
-                  return <blockquote key={pIdx} className="border-l-2 border-indigo-400 pl-3 italic text-zinc-300">{para.slice(2)}</blockquote>;
-                }
+                if (para.startsWith('# ')) return <h1 key={pIdx} className="text-2xl font-bold text-white mt-4">{para.slice(2)}</h1>;
+                if (para.startsWith('## ')) return <h2 key={pIdx} className="text-xl font-bold text-white mt-3">{para.slice(3)}</h2>;
+                if (para.startsWith('### ')) return <h3 key={pIdx} className="text-lg font-semibold text-white mt-2">{para.slice(4)}</h3>;
+                if (para.startsWith('> ')) return <blockquote key={pIdx} className="border-l-2 border-white pl-4 italic text-zinc-300">{para.slice(2)}</blockquote>;
 
-                // Render bold & inline code
-                const formattedText = para.split(/(\*\*.*?\*\*|`.*?`)/g).map((segment, sIdx) => {
-                  if (segment.startsWith('**') && segment.endsWith('**')) {
-                    return <strong key={sIdx} className="font-semibold text-white">{segment.slice(2, -2)}</strong>;
-                  }
-                  if (segment.startsWith('`') && segment.endsWith('`')) {
-                    return <code key={sIdx} className="px-1.5 py-0.5 rounded-md bg-white/[0.08] text-indigo-300 font-mono text-[13px]">{segment.slice(1, -1)}</code>;
-                  }
-                  return segment;
+                const formatted = para.split(/(\*\*.*?\*\*|`.*?`)/g).map((seg, sIdx) => {
+                  if (seg.startsWith('**') && seg.endsWith('**')) return <strong key={sIdx} className="font-semibold text-white">{seg.slice(2, -2)}</strong>;
+                  if (seg.startsWith('`') && seg.endsWith('`')) return <code key={sIdx} className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-100 font-mono text-[14px]">{seg.slice(1, -1)}</code>;
+                  return seg;
                 });
 
-                return <p key={pIdx} className="leading-relaxed whitespace-pre-wrap">{formattedText}</p>;
+                return <p key={pIdx} className="whitespace-pre-wrap">{formatted}</p>;
               })}
             </div>
           );
@@ -483,395 +414,277 @@ export default function App() {
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const heroSuggestions = [
-    { title: "Architectural Deep Dive", desc: "Design a fault-tolerant async worker with retries", icon: Code2, prompt: "Can you provide a production-quality pattern for async task queues in Python FastAPI with backoff and error boundaries?" },
-    { title: "Document Review", desc: "Inspect and extract critical insights from files", icon: FileText, prompt: "What are the core technical constraints, dependencies, and risks outlined in this attached document?" },
-    { title: "Deep Explanation", desc: "Understand model quantization & token latency", icon: Lightbulb, prompt: "Explain how AI model quantization (FP8, INT4) impacts latency, memory, and throughput in high-concurrency environments." },
-    { title: "Strategic Roadmap", desc: "Plan a zero-cost local-first cloud architecture", icon: Compass, prompt: "Outline a practical roadmap to scale a personal AI platform to 1,000 active users while keeping ongoing inference costs near zero." }
-  ];
-
   return (
-    <div className={`flex h-dvh w-full overflow-hidden ${darkMode ? 'bg-[#0f1115] text-[#eceff3]' : 'bg-[#f6f7f9] text-[#14171c]'} font-sans antialiased`}>
+    <div className={`flex h-dvh w-full overflow-hidden ${darkMode ? 'bg-[#212121] text-[#ececec]' : 'bg-white text-zinc-900'} font-sans`}>
       
-      {/* Hidden File Picker */}
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileSelect} 
         className="hidden" 
-        accept="image/*,.pdf,.txt,.md,.py,.js,.ts,.tsx,.jsx,.html,.css,.csv,.json" 
+        accept="image/*,.pdf,.txt,.md,.py,.js,.json,.csv" 
       />
 
-      {/* --- COLLAPSIBLE WORKSPACE SIDEBAR --- */}
+      {/* --- CHATGPT SIDEBAR --- */}
       <aside 
-        className={`fixed lg:relative inset-y-0 left-0 z-50 duration-300 transition-all overflow-hidden flex flex-col border-r shrink-0 select-none ${
-          isSidebarOpen ? 'w-76 shadow-2xl lg:shadow-none' : 'w-0'
-        } ${darkMode ? 'border-white/[0.07] bg-[#181b21]' : 'border-zinc-200 bg-white'}`}
+        className={`fixed lg:relative inset-y-0 left-0 z-50 duration-200 transition-all overflow-hidden flex flex-col border-r shrink-0 select-none ${
+          isSidebarOpen ? 'w-64 shadow-2xl lg:shadow-none' : 'w-0'
+        } ${darkMode ? 'border-transparent bg-[#171717]' : 'border-zinc-200 bg-[#f9f9f9]'}`}
       >
-        <div className="p-4 space-y-4 flex-1 flex flex-col min-w-[19rem] overflow-hidden">
+        <div className="p-3 space-y-2 flex-1 flex flex-col min-w-[16rem] overflow-hidden">
           
-          {/* Brand & Animated Logo */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 relative group">
-                <div className="absolute inset-0 rounded-2xl bg-indigo-400 blur-sm opacity-40 group-hover:opacity-75 transition" />
-                <Sparkles size={18} className="relative z-10 animate-pulse" />
-              </div>
-              <div className="leading-tight">
-                <div className="flex items-center gap-1.5">
-                  <h1 className="font-bold text-[15px] tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">KIO</h1>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono">v1.0</span>
-                </div>
-                <p className="text-[11px] text-[#a3acb9] font-medium">Farhan&apos;s Assistant</p>
-              </div>
-            </div>
+          {/* Sidebar Top: Collapse & New Chat */}
+          <div className="flex items-center justify-between px-1.5 py-1">
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              title="Close sidebar"
+            >
+              <PanelLeft size={18} />
+            </button>
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-xl hover:bg-white/[0.06] text-zinc-400 hover:text-white transition"
-                title="Toggle Theme"
-              >
-                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="lg:hidden p-2 rounded-xl hover:bg-white/[0.06] text-zinc-400"
-              >
-                <X size={17} />
-              </button>
-            </div>
+            <button
+              onClick={createNewChat}
+              className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              title="New chat"
+            >
+              <SquarePen size={18} />
+            </button>
           </div>
 
-          {/* New Chat Button */}
-          <button
-            onClick={createNewChat}
-            className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-2">
-              <Plus size={16} />
-              <span>New Conversation</span>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/10 font-mono">⌘N</span>
-          </button>
-
           {/* Search History */}
-          <div className="relative">
-            <Search size={13} className="absolute left-3.5 top-2.5 text-zinc-500" />
+          <div className="relative pt-1 px-1">
+            <Search size={14} className="absolute left-3.5 top-3.5 text-zinc-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className={`w-full pl-9 pr-3 py-2 rounded-xl text-xs outline-none border transition ${
-                darkMode ? 'bg-[#0f1115] border-white/[0.08] text-zinc-200 focus:border-indigo-500/50' : 'bg-zinc-100 border-zinc-200'
-              }`}
+              placeholder="Search chats..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none bg-zinc-800/60 border border-transparent focus:border-zinc-700 text-zinc-200"
             />
           </div>
 
-          {/* Conversation History Stream */}
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-2 pt-1 pb-1">
-              Recent Chats
-            </p>
-            {filteredConversations.length === 0 ? (
-              <p className="text-xs text-zinc-500 px-2 py-4 italic text-center">No conversations found</p>
-            ) : (
-              filteredConversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => selectConversation(conv.id)}
-                  className={`w-full group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition ${
-                    currentConvId === conv.id
-                      ? 'bg-indigo-600/15 text-indigo-400 font-medium border border-indigo-500/25'
-                      : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
-                  }`}
+          {/* Conversations History */}
+          <div className="flex-1 overflow-y-auto space-y-0.5 pt-2 px-1 custom-scrollbar">
+            <p className="text-[11px] font-semibold text-zinc-500 px-2 py-1">Recent</p>
+            {filteredConversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => selectConversation(conv.id)}
+                className={`w-full group flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition ${
+                  currentConvId === conv.id
+                    ? 'bg-zinc-800 text-white font-medium'
+                    : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white'
+                }`}
+              >
+                <span className="truncate flex-1">{conv.title || 'Conversation'}</span>
+                <button
+                  onClick={(e) => deleteChat(e, conv.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-400 text-zinc-400 rounded"
+                  title="Delete"
                 >
-                  <div className="flex items-center gap-2.5 truncate flex-1 mr-2">
-                    <MessageSquare size={14} className="shrink-0 opacity-60 group-hover:opacity-100" />
-                    {editingConvId === conv.id ? (
-                      <input
-                        type="text"
-                        value={renameBuffer}
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setRenameBuffer(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveRename(e as any, conv.id);
-                        }}
-                        className="bg-black/40 border border-indigo-500/40 rounded px-1.5 py-0.5 text-xs text-white outline-none w-full"
-                      />
-                    ) : (
-                      <span className="truncate">{conv.title || 'Conversation'}</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                    {editingConvId === conv.id ? (
-                      <button onClick={(e) => saveRename(e, conv.id)} className="p-1 text-emerald-400 hover:bg-white/[0.08] rounded">
-                        <Check size={12} />
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingConvId(conv.id);
-                          setRenameBuffer(conv.title);
-                        }} 
-                        className="p-1 text-zinc-400 hover:text-white rounded"
-                        title="Rename"
-                      >
-                        <Edit3 size={12} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => deleteChat(e, conv.id)}
-                      className="p-1 text-zinc-400 hover:text-rose-400 rounded"
-                      title="Delete"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Profile & Settings Footer */}
-        <div className="p-3.5 border-t border-white/[0.08] bg-[#14161c] min-w-[19rem] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white">
-              F
-            </div>
-            <div className="leading-tight">
-              <p className="text-xs font-semibold text-white">Farhan</p>
-              <p className="text-[10px] text-zinc-400">Personal Pro Plan</p>
-            </div>
-          </div>
+        {/* User Account / Settings Row at Bottom */}
+        <div className="p-3 border-t border-zinc-800 bg-[#171717] min-w-[16rem]">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition"
-            title="Settings & Data"
+            className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-zinc-800 transition text-xs text-zinc-300"
           >
-            <Settings size={16} />
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xs">
+                F
+              </div>
+              <div className="text-left leading-tight">
+                <p className="font-semibold text-white">Farhan</p>
+                <p className="text-[10px] text-zinc-400">Settings</p>
+              </div>
+            </div>
+            <Settings size={15} className="text-zinc-400" />
           </button>
         </div>
       </aside>
 
-      {/* --- MAIN STAGE --- */}
+      {/* --- MAIN CHAT STAGE --- */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         
-        {/* Top Navbar */}
-        <header className="flex items-center justify-between py-3 px-5 border-b border-white/[0.06] bg-inherit shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-xl hover:bg-white/[0.06] text-zinc-300 transition"
-              title="Toggle sidebar"
-            >
-              {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-            </button>
-            
-            {/* Model Selector Pill */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs font-medium">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-zinc-200">Claude Haiku 4.5</span>
-              <span className="text-[10px] text-zinc-500 border-l border-white/[0.1] pl-2 font-mono">OmniRoute</span>
+        {/* Top Header: Hamburger, Model Picker & New Chat */}
+        <header className="flex items-center justify-between py-2.5 px-3.5 border-b border-transparent bg-inherit shrink-0 z-20">
+          <div className="flex items-center gap-1.5">
+            {!isSidebarOpen && (
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                title="Open sidebar"
+              >
+                <PanelLeft size={19} />
+              </button>
+            )}
+
+            {!isSidebarOpen && (
+              <button
+                onClick={createNewChat}
+                className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                title="New chat"
+              >
+                <SquarePen size={18} />
+              </button>
+            )}
+
+            {/* Model Picker Pill */}
+            <div className="relative">
+              <button
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-zinc-800/80 transition text-sm font-semibold text-zinc-200"
+              >
+                <span>{selectedModel}</span>
+                <ChevronDown size={15} className="text-zinc-400" />
+              </button>
+
+              {/* Model Dropdown Menu */}
+              {isModelDropdownOpen && (
+                <div className="absolute left-0 top-10 mt-1 w-64 rounded-2xl bg-[#2f2f2f] border border-zinc-700 shadow-2xl p-1.5 z-50 text-xs">
+                  <button
+                    onClick={() => { setSelectedModel('Kio 4o'); setIsModelDropdownOpen(false); }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-zinc-700 text-left transition"
+                  >
+                    <div>
+                      <p className="font-semibold text-white flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-purple-400" /> Kio 4o
+                      </p>
+                      <p className="text-[11px] text-zinc-400">OmniRoute Claude • Smartest</p>
+                    </div>
+                    {selectedModel === 'Kio 4o' && <CheckCircle2 size={16} className="text-white" />}
+                  </button>
+
+                  <button
+                    onClick={() => { setSelectedModel('Kio 4o mini'); setIsModelDropdownOpen(false); }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-zinc-700 text-left transition"
+                  >
+                    <div>
+                      <p className="font-semibold text-white">Kio 4o mini</p>
+                      <p className="text-[11px] text-zinc-400">Fast & lightweight everyday tasks</p>
+                    </div>
+                    {selectedModel === 'Kio 4o mini' && <CheckCircle2 size={16} className="text-white" />}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={exportChat}
-              disabled={messages.length === 0}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.06] text-xs font-medium text-zinc-300 transition disabled:opacity-40"
-              title="Export Conversation"
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              title="Theme"
             >
-              <Download size={14} />
-              <span>Export</span>
-            </button>
-            <button
-              onClick={createNewChat}
-              className="lg:hidden p-2 rounded-xl bg-indigo-600 text-white"
-              title="New Chat"
-            >
-              <Plus size={16} />
+              {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
           </div>
         </header>
 
-        {/* Global Connection Notice */}
-        {errorNotice && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-xs text-amber-300 flex items-center justify-between">
-            <span>{errorNotice}</span>
-            <button onClick={() => setErrorNotice(null)} className="font-bold">&times;</button>
-          </div>
-        )}
-
         {/* --- CHAT FEED --- */}
         <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-7 max-w-4xl w-full mx-auto min-w-0 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6 max-w-3xl w-full mx-auto min-w-0 custom-scrollbar">
             
-            {/* HERO LANDING (Claude & ChatGPT Hybrid) */}
+            {/* ChatGPT Empty State */}
             {messages.length === 0 && (
-              <div className="h-full flex flex-col justify-center items-center text-center space-y-8 my-auto py-12 animate-fade-in">
-                <div className="space-y-3.5">
-                  <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-pink-500/10 border border-white/[0.1] text-indigo-400 shadow-2xl relative">
-                    <Sparkles size={32} className="animate-pulse" />
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
-                    Where would you like to start, Farhan?
-                  </h2>
-                  <p className="text-sm text-[#a3acb9] max-w-md mx-auto leading-relaxed">
-                    Kio is ready with Claude Haiku intelligence, document review, and multimodal vision.
-                  </p>
-                </div>
-
-                {/* Interactive Suggestion Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full max-w-2xl text-left">
-                  {heroSuggestions.map((item, idx) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => handleSend(item.prompt)}
-                        className="p-4 rounded-2xl border border-white/[0.08] bg-[#181b21]/70 hover:bg-[#232831]/80 hover:border-indigo-500/40 transition-all duration-200 group text-left shadow-sm active:scale-[0.99]"
-                      >
-                        <div className="flex items-center gap-2 text-indigo-400 mb-1.5">
-                          <Icon size={17} className="group-hover:scale-110 transition-transform" />
-                          <span className="text-xs font-semibold text-zinc-100">{item.title}</span>
-                        </div>
-                        <p className="text-[12px] text-[#a3acb9] leading-snug">{item.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="h-full flex flex-col justify-center items-center text-center space-y-6 my-auto py-16">
+                <h2 className="text-3xl font-semibold text-white">What can I help with?</h2>
               </div>
             )}
 
-            {/* MESSAGES FLOW */}
+            {/* Messages */}
             {messages.map((m, idx) => (
               <div key={idx} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} group w-full`}>
-                <div className="flex items-start gap-3.5 max-w-[94%] md:max-w-[88%] min-w-0">
+                <div className={`w-full max-w-3xl ${m.role === 'user' ? 'flex justify-end' : 'flex items-start gap-4'}`}>
                   
                   {m.role === 'assistant' && (
-                    <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md mt-1">
-                      <Sparkles size={16} />
+                    <div className="h-7 w-7 rounded-full bg-white text-black flex items-center justify-center font-bold text-xs shrink-0 mt-1">
+                      K
                     </div>
                   )}
 
-                  <div className="flex-1 space-y-2 min-w-0">
+                  <div className="space-y-2 min-w-0 flex-1">
                     
-                    {/* Image Attachment Preview */}
+                    {/* User Image Thumbnail */}
                     {m.images && m.images.length > 0 && (
-                      <div className="flex flex-wrap gap-2.5 justify-end">
+                      <div className="flex flex-wrap gap-2 justify-end mb-2">
                         {m.images.map((img, i) => (
-                          <img key={i} src={img} alt="Uploaded attachment" className="max-w-[260px] max-h-[260px] rounded-2xl object-cover border border-white/[0.12] shadow-lg" />
+                          <img key={i} src={img} alt="Uploaded attachment" className="max-w-[240px] max-h-[240px] rounded-2xl object-cover border border-zinc-700 shadow-md" />
                         ))}
                       </div>
                     )}
 
-                    {/* Document Badges */}
+                    {/* Document Badge */}
                     {m.files && m.files.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 justify-end">
+                      <div className="flex flex-wrap gap-1.5 justify-end mb-2">
                         {m.files.map((f, i) => (
-                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs shadow-sm">
-                            <FileText size={13} className="text-indigo-400" />
+                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-800 text-zinc-200 text-xs">
+                            <FileText size={14} />
                             <span className="font-medium truncate max-w-[180px]">{f.name}</span>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* Content Box */}
+                    {/* Bubble for User, Open Editorial Layout for Assistant */}
                     {editingMsgIdx === idx ? (
-                      <div className="p-4 rounded-2xl bg-[#181b21] border border-indigo-500/50 space-y-3">
+                      <div className="p-3 bg-[#2f2f2f] rounded-2xl space-y-2">
                         <textarea
                           value={editBuffer}
                           onChange={(e) => setEditBuffer(e.target.value)}
-                          className="w-full bg-transparent text-sm text-zinc-100 outline-none resize-none font-sans"
+                          className="w-full bg-transparent text-sm text-white outline-none resize-none font-sans"
                           rows={3}
                         />
                         <div className="flex justify-end gap-2 text-xs">
-                          <button
-                            onClick={() => setEditingMsgIdx(null)}
-                            className="px-3 py-1.5 rounded-xl text-zinc-400 hover:bg-white/[0.06]"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveEdit(idx)}
-                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
-                          >
-                            Save & Resubmit
-                          </button>
+                          <button onClick={() => setEditingMsgIdx(null)} className="px-3 py-1 text-zinc-400 hover:text-white">Cancel</button>
+                          <button onClick={() => handleSaveEdit(idx)} className="px-3 py-1 bg-white text-black font-semibold rounded-lg">Send</button>
                         </div>
                       </div>
                     ) : (
-                      <div className={`rounded-2xl px-5 py-4 text-sm leading-relaxed ${
-                        m.role === 'user'
-                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-br-xs shadow-md shadow-indigo-600/10'
-                          : m.isError
-                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-bl-xs'
-                          : 'bg-[#181b21] border border-white/[0.06] text-[#eceff3] rounded-bl-xs shadow-sm'
-                      }`}>
+                      <div className={m.role === 'user' ? 'bg-[#2f2f2f] text-white px-5 py-3 rounded-[24px] max-w-[85%] ml-auto text-[15px]' : 'text-[#ececec]'}>
                         {renderMessageContent(m.content)}
                       </div>
                     )}
 
-                    {/* Hover Utility Action Bar */}
-                    <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* ChatGPT Hover Action Bar */}
+                    <div className="flex items-center gap-1.5 pt-1 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => copyText(m.content, idx)}
-                        className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] text-xs flex items-center gap-1 transition"
-                        title="Copy text"
+                        className="p-1 hover:text-white rounded"
+                        title="Copy"
                       >
-                        {copiedIdx === idx ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                        <span className="text-[11px]">{copiedIdx === idx ? 'Copied' : 'Copy'}</span>
+                        {copiedIdx === idx ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                       </button>
 
                       {m.role === 'assistant' && (
                         <>
-                          <button
-                            onClick={() => setFeedback(idx, 'up')}
-                            className={`p-1.5 rounded-lg hover:bg-white/[0.06] transition ${m.feedback === 'up' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'}`}
-                            title="Helpful response"
-                          >
-                            <ThumbsUp size={13} />
+                          <button onClick={() => handleRegenerate()} className="p-1 hover:text-white rounded" title="Regenerate">
+                            <RotateCcw size={14} />
                           </button>
-                          <button
-                            onClick={() => setFeedback(idx, 'down')}
-                            className={`p-1.5 rounded-lg hover:bg-white/[0.06] transition ${m.feedback === 'down' ? 'text-rose-400' : 'text-zinc-400 hover:text-white'}`}
-                            title="Report poor response"
-                          >
-                            <ThumbsDown size={13} />
+                          <button onClick={() => alert('Rated helpful!')} className="p-1 hover:text-white rounded" title="Good response">
+                            <ThumbsUp size={14} />
                           </button>
-                          {idx === messages.length - 1 && !isLoading && (
-                            <button
-                              onClick={handleRegenerate}
-                              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] text-xs flex items-center gap-1 transition"
-                              title="Regenerate"
-                            >
-                              <RotateCcw size={13} />
-                              <span className="text-[11px]">Retry</span>
-                            </button>
-                          )}
+                          <button onClick={() => alert('Feedback noted')} className="p-1 hover:text-white rounded" title="Bad response">
+                            <ThumbsDown size={14} />
+                          </button>
                         </>
                       )}
 
                       {m.role === 'user' && editingMsgIdx !== idx && (
                         <button
-                          onClick={() => {
-                            setEditingMsgIdx(idx);
-                            setEditBuffer(m.content);
-                          }}
-                          className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] text-xs flex items-center gap-1 transition"
-                          title="Edit prompt"
+                          onClick={() => { setEditingMsgIdx(idx); setEditBuffer(m.content); }}
+                          className="p-1 hover:text-white rounded"
+                          title="Edit message"
                         >
-                          <Edit3 size={13} />
-                          <span className="text-[11px]">Edit</span>
+                          <Edit2 size={13} />
                         </button>
                       )}
                     </div>
@@ -881,25 +694,16 @@ export default function App() {
               </div>
             ))}
 
-            {/* MULTI-STAGE REASONING ANIMATION */}
+            {/* Thinking / Streaming Indicator */}
             {isLoading && (
-              <div className="flex items-start gap-3.5 max-w-lg pt-1">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md animate-pulse">
-                  <Sparkles size={16} />
+              <div className="flex items-center gap-3 text-sm text-zinc-400 max-w-3xl">
+                <div className="h-7 w-7 rounded-full bg-white text-black flex items-center justify-center font-bold text-xs shrink-0 animate-pulse">
+                  K
                 </div>
-                <div className="p-4 rounded-2xl bg-[#181b21] border border-white/[0.08] space-y-2.5 w-full shadow-xl">
-                  <div className="flex items-center justify-between text-xs text-indigo-400 font-medium">
-                    <span className="flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin" />
-                      {thinkingStep === 1 && "1. Tokenizing context & attachments..."}
-                      {thinkingStep === 2 && "2. Routing through OmniRoute Gateway..."}
-                      {thinkingStep === 3 && "3. Claude Haiku synthesizing answer..."}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-mono">Live</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-[#232831] rounded-full overflow-hidden relative">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-pulse w-3/4" />
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]" />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]" />
                 </div>
               </div>
             )}
@@ -907,41 +711,41 @@ export default function App() {
             <div ref={chatBottomRef} />
           </div>
 
-          {/* --- FLOATING COMMAND CAPSULE COMPOSER --- */}
-          <div className="p-4 md:p-6 max-w-4xl w-full mx-auto shrink-0 pb-[max(1.2rem,env(safe-area-inset-bottom))]">
+          {/* --- THE ICONIC CHATGPT COMPOSER PILL --- */}
+          <div className="p-4 md:p-6 max-w-3xl w-full mx-auto shrink-0 pb-[max(1.2rem,env(safe-area-inset-bottom))]">
             
-            {/* Attachment preview dock */}
+            {/* Attachment preview pills */}
             {attachedItems.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2 px-1">
                 {attachedItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-[#181b21] border border-indigo-500/40 text-xs text-zinc-200 shadow-lg animate-fade-in">
+                  <div key={i} className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-[#2f2f2f] text-xs text-zinc-200">
                     {item.isImage && item.dataUrl ? (
-                      <img src={item.dataUrl} alt="preview" className="h-9 w-9 rounded-lg object-cover" />
+                      <img src={item.dataUrl} alt="preview" className="h-8 w-8 rounded-lg object-cover" />
                     ) : (
-                      <FileText size={16} className="text-indigo-400 ml-1.5" />
+                      <FileText size={15} className="ml-1" />
                     )}
-                    <span className="truncate max-w-[150px] font-medium">{item.name}</span>
-                    <button onClick={() => setAttachedItems(attachedItems.filter((_, idx) => idx !== i))} className="text-zinc-400 hover:text-rose-400 transition">
-                      <X size={14} />
+                    <span className="truncate max-w-[140px]">{item.name}</span>
+                    <button onClick={() => setAttachedItems(attachedItems.filter((_, idx) => idx !== i))} className="hover:text-rose-400">
+                      <X size={13} />
                     </button>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Elevated Pill Container */}
-            <div className="rounded-2xl border border-white/[0.1] bg-[#181b21]/95 shadow-2xl backdrop-blur-xl focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/15 transition-all">
+            {/* The Capsule */}
+            <div className="rounded-[28px] bg-[#2f2f2f] border border-transparent focus-within:border-zinc-600 transition shadow-xl p-2.5 pl-3.5">
               
-              {/* Text Field */}
-              <div className="flex items-end p-2.5 pl-3.5 gap-2">
+              <div className="flex items-end gap-2">
+                {/* Plus / Attach Button */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || isLoading}
-                  className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/[0.06] transition disabled:opacity-50 shrink-0"
-                  title="Attach photo or document"
+                  className="p-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-700/60 transition shrink-0"
+                  title="Attach"
                 >
-                  {isUploading ? <Loader2 size={19} className="animate-spin text-indigo-400" /> : <Paperclip size={19} />}
+                  <Plus size={20} />
                 </button>
 
                 <textarea
@@ -950,116 +754,186 @@ export default function App() {
                   disabled={isLoading}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={attachedItems.length > 0 ? "Ask about this attachment..." : "Message Kio (Shift+Enter for new line)..."}
+                  placeholder="Message Kio"
                   rows={1}
-                  className="flex-1 bg-transparent py-2 text-sm outline-none text-[#eceff3] placeholder:text-[#a3acb9] resize-none max-h-40 font-sans leading-relaxed"
+                  className="flex-1 bg-transparent py-2 text-[15px] outline-none text-[#ececec] placeholder:text-zinc-500 resize-none max-h-44 font-sans leading-relaxed"
                 />
 
-                {isLoading ? (
+                {/* Right Action Buttons */}
+                <div className="flex items-center gap-1 shrink-0 pb-0.5">
                   <button
                     type="button"
-                    onClick={handleStop}
-                    className="p-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-md transition active:scale-95 flex items-center justify-center shrink-0 animate-pulse"
-                    title="Stop generation"
-                  >
-                    <Square size={16} fill="currentColor" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleSend()}
-                    disabled={!inputMessage.trim() && attachedItems.length === 0}
-                    className="p-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-30 text-white shadow-md shadow-indigo-600/20 transition active:scale-95 flex items-center justify-center shrink-0"
-                    title="Send message"
-                  >
-                    <Send size={16} />
-                  </button>
-                )}
-              </div>
-
-              {/* Tool Mode Toggles Bar */}
-              <div className="flex items-center justify-between px-3.5 py-2 border-t border-white/[0.06] text-xs">
-                <div className="flex items-center gap-2">
-                  <button
                     onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition text-[11px] font-medium ${
-                      webSearchEnabled ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400 hover:text-white'
-                    }`}
+                    className={`p-1.5 rounded-full transition ${webSearchEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-zinc-400 hover:text-white'}`}
+                    title="Search web"
                   >
-                    <Globe size={13} />
-                    <span>Web Research</span>
+                    <Globe size={18} />
                   </button>
+
                   <button
+                    type="button"
                     onClick={() => setDeepThinkEnabled(!deepThinkEnabled)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition text-[11px] font-medium ${
-                      deepThinkEnabled ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-zinc-400 hover:text-white'
-                    }`}
+                    className={`p-1.5 rounded-full transition ${deepThinkEnabled ? 'text-purple-400 bg-purple-500/10' : 'text-zinc-400 hover:text-white'}`}
+                    title="Deep Reasoning"
                   >
-                    <Brain size={13} />
-                    <span>Deep Reason</span>
+                    <Brain size={18} />
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => alert('Voice mode is coming soon!')}
+                    className="p-1.5 text-zinc-400 hover:text-white rounded-full transition"
+                    title="Voice mode"
+                  >
+                    <Mic size={18} />
+                  </button>
+
+                  {/* Send or Stop Circular Pill */}
+                  {isLoading ? (
+                    <button
+                      type="button"
+                      onClick={handleStop}
+                      className="h-8 w-8 rounded-full bg-white text-black flex items-center justify-center transition active:scale-95"
+                      title="Stop"
+                    >
+                      <Square size={13} fill="black" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSend()}
+                      disabled={!inputMessage.trim() && attachedItems.length === 0}
+                      className="h-8 w-8 rounded-full bg-white text-black disabled:bg-[#424242] disabled:text-[#878787] flex items-center justify-center transition active:scale-95"
+                      title="Send"
+                    >
+                      <ArrowUp size={18} strokeWidth={2.5} />
+                    </button>
+                  )}
                 </div>
-                <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">Claude Haiku • 24/7 Cloud</span>
               </div>
             </div>
 
-            <p className="text-[10.5px] text-zinc-500 text-center mt-2 font-medium">
-              Kio can make mistakes. Verify critical facts.
+            <p className="text-[11px] text-zinc-500 text-center mt-2">
+              Kio can make mistakes. Check important info.
             </p>
           </div>
         </div>
       </main>
 
-      {/* --- SETTINGS & DATA CONTROLS MODAL --- */}
+      {/* --- FULL CHATGPT SETTINGS MODAL --- */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#181b21] border border-white/[0.1] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-fade-in">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <div className="flex items-center gap-2">
-                <Settings size={18} className="text-indigo-400" />
-                <h3 className="font-bold text-base text-white">Settings & Data Controls</h3>
-              </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="text-zinc-400 hover:text-white">
-                <X size={18} />
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#212121] border border-zinc-700/80 rounded-2xl max-w-2xl w-full flex overflow-hidden shadow-2xl h-[480px]">
+            
+            {/* Left Nav Tabs */}
+            <div className="w-52 bg-[#171717] p-3 border-r border-zinc-800 space-y-1">
+              <button
+                onClick={() => setSettingsTab('general')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${settingsTab === 'general' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+              >
+                General
+              </button>
+              <button
+                onClick={() => setSettingsTab('personalization')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${settingsTab === 'personalization' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Personalization
+              </button>
+              <button
+                onClick={() => setSettingsTab('data')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${settingsTab === 'data' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Data controls
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div className="p-3.5 rounded-2xl bg-[#232831] space-y-1">
-                <p className="font-semibold text-white">User Persona</p>
-                <p className="text-zinc-400">Tuned specifically for <strong>Farhan (Faru)</strong></p>
+            {/* Right Tab Content */}
+            <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto">
+              <div>
+                <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+                  <h3 className="font-semibold text-base text-white capitalize">{settingsTab}</h3>
+                  <button onClick={() => setIsSettingsOpen(false)} className="text-zinc-400 hover:text-white">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {settingsTab === 'general' && (
+                  <div className="py-4 space-y-4 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-white text-sm">Theme</p>
+                        <p className="text-zinc-400">Choose appearance</p>
+                      </div>
+                      <button
+                        onClick={() => setDarkMode(!darkMode)}
+                        className="px-3 py-1.5 bg-zinc-800 rounded-lg text-zinc-200 border border-zinc-700"
+                      >
+                        {darkMode ? 'Dark' : 'Light'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
+                      <div>
+                        <p className="font-medium text-white text-sm">Delete all chats</p>
+                        <p className="text-zinc-400">Permanently clear conversation history</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm('Clear all conversation history?')) {
+                            setConversations([]);
+                            setMessages([]);
+                            setCurrentConvId(null);
+                            setIsSettingsOpen(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-rose-600/20 text-rose-300 rounded-lg border border-rose-500/30"
+                      >
+                        Delete all
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === 'personalization' && (
+                  <div className="py-4 space-y-4 text-xs">
+                    <div>
+                      <p className="font-medium text-white text-sm">Custom Instructions</p>
+                      <p className="text-zinc-400 mt-1">Configured for <strong>Farhan (Faru)</strong></p>
+                    </div>
+                    <div className="p-3 bg-zinc-800/80 rounded-xl text-zinc-300 leading-relaxed">
+                      Kio speaks warmly and conversationally without corporate disclaimers, calling you Farhan or Faru naturally.
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === 'data' && (
+                  <div className="py-4 space-y-4 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-white text-sm">Export data</p>
+                        <p className="text-zinc-400">Download your chat history as JSON</p>
+                      </div>
+                      <button
+                        onClick={exportChat}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 rounded-lg text-white border border-zinc-700"
+                      >
+                        <Download size={14} /> Export
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#232831] space-y-1">
-                <p className="font-semibold text-white">Backend Status</p>
-                <p className="text-emerald-400 font-mono text-[11px]">{apiBase}</p>
-                <p className="text-[10px] text-zinc-400">Cloud FastAPI companion on Render</p>
-              </div>
-
-              <div className="pt-2 space-y-2">
+              <div className="pt-4 border-t border-zinc-800 flex justify-end">
                 <button
-                  onClick={exportChat}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-white/[0.1] hover:bg-white/[0.06] text-white font-medium transition"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="px-4 py-2 bg-white text-black font-semibold rounded-xl text-xs"
                 >
-                  <Download size={15} />
-                  <span>Export Chat History (JSON)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm('Clear all conversation history?')) {
-                      setConversations([]);
-                      setMessages([]);
-                      setCurrentConvId(null);
-                      setIsSettingsOpen(false);
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-medium border border-rose-500/20 transition"
-                >
-                  <Trash2 size={15} />
-                  <span>Clear Local History</span>
+                  Done
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}
