@@ -1,14 +1,9 @@
-﻿{
+{
+  "id": "/",
   "short_name": "Kio",
-  "name": "Kio Personal AI Platform",
+  "name": "Kio Personal AI",
   "description": "Your fast personal AI assistant",
   "icons": [
-    {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any maskable"
-    },
     {
       "src": "/icon-192.png",
       "type": "image/png",
@@ -23,6 +18,7 @@
     }
   ],
   "start_url": "/",
+  "scope": "/",
   "background_color": "#0B0C10",
   "theme_color": "#0B0C10",
   "display": "standalone",
