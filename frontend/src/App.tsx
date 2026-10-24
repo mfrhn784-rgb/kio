@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, Plus, Trash2, Shield, Loader2, Sparkles, Sun, Moon, 
   Send, Square, Copy, Check, ChevronLeft, ChevronRight, 
@@ -273,7 +273,7 @@ export default function App() {
       if (err.name !== 'AbortError') {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `⚠️ Error: ${err.message}`, isError: true }
+          { role: 'assistant', content: `?? Error: ${err.message}`, isError: true }
         ]);
       }
     } finally {
