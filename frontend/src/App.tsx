@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  MessageSquare, Plus, Trash2, Shield, Loader2, Sparkles, Sun, Moon, 
-  Send, Square, Copy, Check, ChevronLeft, ChevronRight, 
-  Paperclip, FileText, X, Search, FileCode, ImageIcon
+  MessageSquare, Plus, Trash2, Loader2, Sparkles, Sun, Moon, 
+  Send, Copy, Check, ChevronLeft, ChevronRight, 
+  Paperclip, FileText, X 
 } from 'lucide-react';
 
 interface Conversation {
@@ -29,19 +29,18 @@ interface Message {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'admin'>('chat');
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem('kio-theme') !== 'light');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const apiBase = window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : 'https://kio-backend-g7t0.onrender.com';
-    ? `http://${window.location.hostname}:8000` 
-    : 'http://127.0.0.1:8000';
+  // Connects to Render on mobile/cloud, or localhost on laptop
+  const apiBase = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://127.0.0.1:8000'
+    : 'https://kio-backend-g7t0.onrender.com';
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
@@ -88,13 +87,12 @@ export default function App() {
         if (data.length > 0 && !currentConvId) selectConversation(data[0].id);
       }
     } catch {
-      setErrorNotice('Cannot connect to backend. Verify Wi-Fi network.');
+      setErrorNotice('Backend is waking up (takes ~30s on first load).');
     }
   };
 
   const selectConversation = async (convId: string) => {
     setCurrentConvId(convId);
-    setActiveTab('chat');
     if (window.innerWidth < 768) setIsSidebarOpen(false);
     try {
       const res = await fetch(`${apiBase}/api/conversations/${convId}/messages`);
@@ -120,7 +118,6 @@ export default function App() {
         setCurrentConvId(newConv.id);
         setMessages([]);
         setAttachedItems([]);
-        setActiveTab('chat');
         if (window.innerWidth < 768) setIsSidebarOpen(false);
       }
     } catch {
@@ -150,7 +147,6 @@ export default function App() {
     loadConversations();
   }, []);
 
-  // Multimodal File & Image Selector
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,7 +154,6 @@ export default function App() {
     setIsUploading(true);
     try {
       if (file.type.startsWith('image/')) {
-        // Read as Base64 Data URL for Vision
         const reader = new FileReader();
         reader.onload = () => {
           setAttachedItems((prev) => [
@@ -201,7 +196,7 @@ export default function App() {
 
     if (!targetConvId) {
       try {
-        const title = (rawText || attachedItems[0]?.name || 'Photo Analysis').slice(0, 30);
+        const title = (rawText || attachedItems[0]?.name || 'Chat').slice(0, 30);
         const res = await fetch(`${apiBase}/api/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +212,6 @@ export default function App() {
       }
     }
 
-    // Separate Images & Documents
     const imagesToSend: string[] = [];
     const docFiles: { name: string; size: number }[] = [];
     let textPayload = rawText;
@@ -255,7 +249,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversation_id: targetConvId,
-          message: textPayload || 'Please describe and analyze this image in detail.',
+          message: textPayload || 'Please describe this image in detail.',
           images: imagesToSend
         }),
         signal: controller.signal
@@ -273,7 +267,7 @@ export default function App() {
       if (err.name !== 'AbortError') {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `?? Error: ${err.message}`, isError: true }
+          { role: 'assistant', content: `⚠️ Error: ${err.message}`, isError: true }
         ]);
       }
     } finally {
@@ -291,7 +285,6 @@ export default function App() {
   return (
     <div className={`flex h-dvh w-full overflow-hidden ${darkMode ? 'bg-[#0B0C10] text-[#E4E6EA]' : 'bg-[#FAFAFB] text-[#141518]'}`}>
       
-      {/* Accepts Images, PDF, Code, Docs */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -300,7 +293,6 @@ export default function App() {
         accept="image/*,.pdf,.txt,.md,.py,.js,.json,.csv" 
       />
 
-      {/* Sidebar */}
       <aside className={`fixed md:relative inset-y-0 left-0 z-50 duration-200 transition-all overflow-hidden flex flex-col border-r shrink-0 select-none ${
         isSidebarOpen ? 'w-72 shadow-2xl md:shadow-none' : 'w-0'
       } ${darkMode ? 'border-zinc-800/80 bg-[#101115]' : 'border-zinc-200 bg-white'}`}>
@@ -312,7 +304,7 @@ export default function App() {
               </div>
               <div>
                 <h1 className="font-semibold text-sm tracking-tight text-white">KIO</h1>
-                <p className="text-[10.5px] text-zinc-400 font-medium">Vision & Intelligence</p>
+                <p className="text-[10.5px] text-zinc-400 font-medium">Farhan&apos;s Assistant</p>
               </div>
             </div>
 
@@ -353,7 +345,6 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         <header className="flex items-center justify-between py-3 px-4 border-b border-zinc-800/40 bg-inherit shrink-0 z-20">
           <div className="flex items-center gap-2.5">
@@ -363,7 +354,7 @@ export default function App() {
             <span className="font-semibold text-sm">Kio</span>
             <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Vision Ready
+              Claude Haiku • Online
             </div>
           </div>
           <button onClick={createNewChat} className="p-2 rounded-xl bg-indigo-600 text-white">
@@ -372,7 +363,7 @@ export default function App() {
         </header>
 
         {errorNotice && (
-          <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-2 text-xs text-rose-300 flex justify-between">
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-xs text-amber-300 flex justify-between">
             <span>{errorNotice}</span>
             <button onClick={() => setErrorNotice(null)}>&times;</button>
           </div>
@@ -400,7 +391,6 @@ export default function App() {
                   )}
 
                   <div className="flex-1 space-y-2 min-w-0">
-                    {/* Render Image Thumbnail in Message */}
                     {m.images && m.images.length > 0 && (
                       <div className="flex flex-wrap gap-2 justify-end">
                         {m.images.map((img, i) => (
@@ -409,7 +399,6 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Content */}
                     <div className={`rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
                       m.role === 'user' ? 'bg-indigo-600 text-white rounded-br-xs' : 'bg-zinc-900/80 border border-zinc-800 text-zinc-100 rounded-bl-xs'
                     }`}>
@@ -434,14 +423,11 @@ export default function App() {
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Composer */}
           <div className="p-3 md:p-5 max-w-4xl w-full mx-auto shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            
-            {/* Attached Thumbnails / Chips */}
             {attachedItems.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2 px-1">
                 {attachedItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-indigo-950/60 border border-indigo-500/40 text-xs text-zinc-200 shadow-sm animate-fade-in">
+                  <div key={i} className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-indigo-950/60 border border-indigo-500/40 text-xs text-zinc-200 shadow-sm">
                     {item.isImage && item.dataUrl ? (
                       <img src={item.dataUrl} alt="preview" className="h-8 w-8 rounded-lg object-cover" />
                     ) : (
