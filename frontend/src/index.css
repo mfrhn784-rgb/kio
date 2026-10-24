@@ -1,1 +1,27 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-canvas: #0f1115;
+    --bg-surface: #181b21;
+    --bg-strong: #232831;
+    --text-primary: #eceff3;
+    --text-muted: #a3acb9;
+    --accent: #7b9bff;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
